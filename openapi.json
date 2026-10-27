@@ -1,0 +1,1153 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Flock Energy Meter API",
+    "description": "Read-only API in front of the Urja Meter Ops portal.\n\nMeter metadata comes from the signed bulk export. Consumption history is requested\nper meter and is not cached. Timestamps are naive portal-local datetimes: the\nservice does not add a timezone or UTC marker.\n\nThis process authenticates to the portal with credentials from the environment.\nCallers of this API do not send those credentials. There are no write endpoints.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Application health",
+        "description": "Reports that this process is running. It does not call the Urja Meter Ops portal, so a successful response does not mean the portal is healthy.",
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/meters": {
+      "get": {
+        "tags": [
+          "meters"
+        ],
+        "summary": "List and search meters",
+        "description": "Returns meter metadata from the signed bulk export. The optional query is a case-insensitive substring of the meter id or serial number. Filtering happens before pagination, so pagination.total is the filtered count. Order follows the export. A page past the end returns an empty data array and the real total.",
+        "operationId": "listMeters",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Case-insensitive substring matched against meter id or serial number.",
+              "title": "Query"
+            },
+            "description": "Case-insensitive substring matched against meter id or serial number."
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "1-based page number.",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "1-based page number."
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Page size. Maximum 100.",
+              "default": 20,
+              "title": "Page Size"
+            },
+            "description": "Page size. Maximum 100."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeterPage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The meter or transformer does not exist, or coordinates are unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A query parameter is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The portal could not be authenticated to, reached, or understood.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The portal timed out.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/meters/{meter_id}": {
+      "get": {
+        "tags": [
+          "meters"
+        ],
+        "summary": "Retrieve one meter",
+        "description": "Returns the export record for one meter, including installation type, build, network hierarchy, and numeric coordinates when the export has them. Lookup is exact, then case-insensitive.",
+        "operationId": "getMeter",
+        "parameters": [
+          {
+            "name": "meter_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meter Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Meter"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The meter or transformer does not exist, or coordinates are unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A query parameter is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The portal could not be authenticated to, reached, or understood.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The portal timed out.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/meters/{meter_id}/location": {
+      "get": {
+        "tags": [
+          "meters"
+        ],
+        "summary": "Meter coordinates",
+        "description": "Returns numeric latitude and longitude. The export geo object is used when both values are finite numbers. The geography endpoint is called only when they are not. Unknown meters use error not_found. A known meter with no usable coordinates uses error location_unavailable. Both are HTTP 404.",
+        "operationId": "getMeterLocation",
+        "parameters": [
+          {
+            "name": "meter_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meter Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeterLocation"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The meter or transformer does not exist, or coordinates are unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A query parameter is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The portal could not be authenticated to, reached, or understood.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The portal timed out.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/meters/{meter_id}/consumption": {
+      "get": {
+        "tags": [
+          "meters"
+        ],
+        "summary": "Consumption history",
+        "description": "Returns normalized register readings for one meter, in chronological order. start_date and end_date are inclusive calendar dates in YYYY-MM-DD and are compared with the date portion of the naive recorded_at value. An end date before the start date is HTTP 422. Readings with an unusable timestamp are returned in rejected and are not turned into zeroes. History is not cached.",
+        "operationId": "getMeterConsumption",
+        "parameters": [
+          {
+            "name": "meter_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meter Id"
+            }
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Inclusive start date, YYYY-MM-DD, compared with the naive recorded_at calendar date.",
+              "title": "Start Date"
+            },
+            "description": "Inclusive start date, YYYY-MM-DD, compared with the naive recorded_at calendar date."
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Inclusive end date, YYYY-MM-DD.",
+              "title": "End Date"
+            },
+            "description": "Inclusive end date, YYYY-MM-DD."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsumptionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The meter or transformer does not exist, or coordinates are unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A query parameter is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The portal could not be authenticated to, reached, or understood.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The portal timed out.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/transformers": {
+      "get": {
+        "tags": [
+          "transformers"
+        ],
+        "summary": "List transformers",
+        "description": "Returns distribution transformers. Upstream pages are read until the reported total is reached, then cached. This endpoint paginates that cached list and does not repeat the upstream walk on every call.",
+        "operationId": "listTransformers",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "1-based page number.",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "1-based page number."
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Page size. Maximum 100.",
+              "default": 20,
+              "title": "Page Size"
+            },
+            "description": "Page size. Maximum 100."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransformerPage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The meter or transformer does not exist, or coordinates are unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A query parameter is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The portal could not be authenticated to, reached, or understood.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The portal timed out.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/transformers/{code}": {
+      "get": {
+        "tags": [
+          "transformers"
+        ],
+        "summary": "Retrieve one transformer",
+        "description": "Returns one transformer from the cached listing. No separate detail endpoint was observed. Lookup is exact, then case-insensitive.",
+        "operationId": "getTransformer",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Code"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transformer"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The meter or transformer does not exist, or coordinates are unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A query parameter is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The portal could not be authenticated to, reached, or understood.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The portal timed out.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ConsumptionReading": {
+        "properties": {
+          "recorded_at": {
+            "type": "string",
+            "title": "Recorded At",
+            "description": "Naive portal-local datetime, YYYY-MM-DDTHH:mm:ss, with no offset.",
+            "examples": [
+              "2026-06-24T00:00:00"
+            ]
+          },
+          "source_timestamp": {
+            "type": "string",
+            "title": "Source Timestamp",
+            "description": "Original portal timestamp, DD/MM/YYYY HH:mm.",
+            "examples": [
+              "24/06/2026 00:00"
+            ]
+          },
+          "kwh": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kwh",
+            "description": "Null when missing or not a finite number. Never coerced to zero."
+          },
+          "kvah": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kvah",
+            "description": "Null when missing or not a finite number. Never coerced to zero."
+          },
+          "volt_r": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volt R",
+            "description": "Source field: voltR. Null when missing or not a finite number."
+          }
+        },
+        "type": "object",
+        "required": [
+          "recorded_at",
+          "source_timestamp"
+        ],
+        "title": "ConsumptionReading"
+      },
+      "ConsumptionResponse": {
+        "properties": {
+          "meter_id": {
+            "type": "string",
+            "title": "Meter Id"
+          },
+          "timezone": {
+            "type": "null",
+            "title": "Timezone",
+            "description": "Always null. The portal timestamp has no timezone."
+          },
+          "recorded_at_convention": {
+            "type": "string",
+            "title": "Recorded At Convention",
+            "default": "recorded_at is a naive datetime in YYYY-MM-DDTHH:mm:ss, converted from the portal format DD/MM/YYYY HH:mm. No timezone, offset, or UTC marker is added because the portal does not provide one. source_timestamp is the original value."
+          },
+          "interpretation": {
+            "type": "string",
+            "title": "Interpretation",
+            "default": "In the supplied sample, kWh and kVAh increase over time. That pattern is consistent with cumulative register readings, but it has not been confirmed as the portal's definition. Values are returned as received, not as interval consumption."
+          },
+          "readings": {
+            "items": {
+              "$ref": "#/components/schemas/ConsumptionReading"
+            },
+            "type": "array",
+            "title": "Readings"
+          },
+          "rejected": {
+            "items": {
+              "$ref": "#/components/schemas/RejectedReading"
+            },
+            "type": "array",
+            "title": "Rejected"
+          }
+        },
+        "type": "object",
+        "required": [
+          "meter_id",
+          "readings",
+          "rejected"
+        ],
+        "title": "ConsumptionResponse"
+      },
+      "ErrorBody": {
+        "properties": {
+          "error": {
+            "type": "string",
+            "title": "Error"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error",
+          "message"
+        ],
+        "title": "ErrorBody"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status"
+          },
+          "portal": {
+            "type": "string",
+            "const": "not_checked",
+            "title": "Portal",
+            "description": "Always not_checked. This endpoint does not call the portal."
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "portal"
+        ],
+        "title": "HealthResponse"
+      },
+      "HierarchyNode": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Source field: name. Empty string is preserved."
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "Source field: code. Empty string is preserved."
+          }
+        },
+        "type": "object",
+        "title": "HierarchyNode",
+        "description": "One level of the network hierarchy.\n\nEmpty strings are preserved. A missing level is null on NetworkHierarchy,\nwhich is different from a level that exists with a blank code or name."
+      },
+      "Meter": {
+        "properties": {
+          "meter_id": {
+            "type": "string",
+            "title": "Meter Id",
+            "description": "Source field: meterId.",
+            "examples": [
+              "J100000"
+            ]
+          },
+          "serial_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Serial No",
+            "description": "Source field: serialNo."
+          },
+          "make": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Make"
+          },
+          "phase_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phase Type",
+            "description": "Source field: phaseType."
+          },
+          "install_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Install Status",
+            "description": "Source field: installStatus."
+          },
+          "install_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Install Type",
+            "description": "Source field: installType. Present on the export, absent from the paged search list."
+          },
+          "build": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Build",
+            "description": "Source field: build. Present on the export, absent from the paged search list."
+          },
+          "dt_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dt Code",
+            "description": "Source field: dtCode. Matches a transformer code. Empty string is preserved."
+          },
+          "hierarchy": {
+            "$ref": "#/components/schemas/NetworkHierarchy"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude",
+            "description": "Source field: geo.lat, as a number."
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude",
+            "description": "Source field: geo.lng, as a number."
+          }
+        },
+        "type": "object",
+        "required": [
+          "meter_id",
+          "hierarchy"
+        ],
+        "title": "Meter",
+        "description": "Meter metadata taken from the bulk export.\n\nField mapping: meterId, serialNo, make, phaseType, installStatus,\ninstallType, build, dtCode, hierarchy, geo.lat, geo.lng."
+      },
+      "MeterLocation": {
+        "properties": {
+          "meter_id": {
+            "type": "string",
+            "title": "Meter Id"
+          },
+          "latitude": {
+            "type": "number",
+            "title": "Latitude"
+          },
+          "longitude": {
+            "type": "number",
+            "title": "Longitude"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "export",
+              "geo_endpoint"
+            ],
+            "title": "Source",
+            "description": "export when geo.lat and geo.lng were usable. geo_endpoint when the dedicated geography call was required."
+          }
+        },
+        "type": "object",
+        "required": [
+          "meter_id",
+          "latitude",
+          "longitude",
+          "source"
+        ],
+        "title": "MeterLocation"
+      },
+      "MeterPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Meter"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/Pagination"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "title": "MeterPage"
+      },
+      "NetworkHierarchy": {
+        "properties": {
+          "zone": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HierarchyNode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "circle": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HierarchyNode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "division": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HierarchyNode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "subdivision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HierarchyNode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "substation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HierarchyNode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "feeder": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HierarchyNode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HierarchyNode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "NetworkHierarchy"
+      },
+      "Pagination": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Number of records after filtering and before pagination."
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page",
+            "description": "1-based page number that was requested."
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          },
+          "total_pages": {
+            "type": "integer",
+            "title": "Total Pages",
+            "description": "Zero when total is zero."
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "page",
+          "page_size",
+          "total_pages"
+        ],
+        "title": "Pagination"
+      },
+      "RejectedReading": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index",
+            "description": "Zero-based index in the upstream data array."
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "invalid_timestamp",
+              "not_an_object"
+            ],
+            "title": "Reason"
+          },
+          "source_timestamp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "index",
+          "reason"
+        ],
+        "title": "RejectedReading",
+        "description": "A history row that could not be placed in time.\n\nThese rows are listed so malformed data is not dropped without a trace.\nDate filters do not apply to them, because they have no usable timestamp."
+      },
+      "Transformer": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "examples": [
+              "DT-001"
+            ]
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "feeder_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feeder Code",
+            "description": "Source field: feederCode."
+          },
+          "capacity_kva": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity Kva",
+            "description": "Source field: capacityKva. Null when missing or not a finite number."
+          }
+        },
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "Transformer",
+        "description": "Distribution transformer.\n\nField mapping: code, name, feederCode, capacityKva.\nMeters reference this record through dt_code."
+      },
+      "TransformerPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Transformer"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/Pagination"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "title": "TransformerPage"
+      }
+    }
+  }
+}
