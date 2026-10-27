@@ -373,13 +373,3 @@ kwh_non_decreasing: True
 ```
 
 A follow-up read, still without printing secrets, confirmed the search page size of 20, the transformer page size of 20, string geography fields, string energy fields, 30-minute spacing, and the session cookie attributes `Max-Age=3600; Path=/; HttpOnly; Secure; SameSite=Lax`.
-
-## Publishing
-
-The project is prepared locally and has not been committed or pushed. After review:
-
-1. Confirm `git status` does not list `.env`.
-2. Create a public git repository.
-3. Commit the source, tests, `README.md`, `PROTOCOL.md`, `REFLECTION.md`, `openapi.json`, `requirements.txt`, and `.env.example`.
-4. Do not commit `.env`, `.venv`, or the raw meter export.
-5. Push, and send the repository URL back to the assignment contact.
